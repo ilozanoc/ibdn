@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark-master
+  template:
+    metadata:
+      labels:
+        app: spark-master
+    spec:
+      containers:
+      - name: spark-master
+        image: europe-southwest1-docker.pkg.dev/practica-creativa-495313/practica/spark-master:latest
+        imagePullPolicy: Always
+        command: ["/opt/spark/bin/spark-class"]
+        args: ["org.apache.spark.deploy.master.Master", "--host", "0.0.0.0"]
+        ports:
+        - containerPort: 7077
+        - containerPort: 8080
+        - containerPort: 6066   # standalone REST submit API
+        - containerPort: 7078   # spark.driver.port
+        - containerPort: 7079   # spark.blockManager.port
+        env:
+        - name: SPARK_USER
+          value: "spark"
+        - name: HOME
+          value: "/home/spark"
+        - name: SPARK_MASTER_PORT
+          value: "7077"
+        - name: SPARK_MASTER_HOST
+          value: "spark-master"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master
+spec:
+  selector:
+    app: spark-master
+  ports:
+  - name: spark
+    port: 7077
+    targetPort: 7077
+  - name: ui
+    port: 8080
+    targetPort: 8080
+  - name: rest
+    port: 6066
+    targetPort: 6066
+  - name: driver-ui
+    port: 4040
+    targetPort: 4040
+  - name: driver
+    port: 7078
+    targetPort: 7078
+  - name: block-manager
+    port: 7079
+    targetPort: 7079
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master-ui
+spec:
+  type: NodePort
+  selector:
+    app: spark-master
+  ports:
+  - name: ui
+    port: 8080
+    targetPort: 8080
+    nodePort: 30880
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-worker
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: spark-worker
+  template:
+    metadata:
+      labels:
+        app: spark-worker
+    spec:
+      tolerations:
+      - key: "node.kubernetes.io/memory-pressure"
+        operator: "Exists"
+        effect: "NoSchedule"
+      containers:
+      - name: spark-worker
+        image: europe-southwest1-docker.pkg.dev/practica-creativa-495313/practica/spark-worker:latest
+        imagePullPolicy: Always
+        command: ["/opt/spark/bin/spark-class"]
+        args: ["org.apache.spark.deploy.worker.Worker", "--host", "$(MY_POD_IP)", "spark://spark-master:7077"]
+        env:
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: SPARK_LOCAL_IP
+          value: "$(MY_POD_IP)"
+        - name: SPARK_LOCAL_HOSTNAME
+          value: "$(MY_POD_IP)"
+        - name: SPARK_WORKER_HOST
+          value: "$(MY_POD_IP)"
+        - name: SPARK_USER
+          value: "spark"
+        - name: HOME
+          value: "/home/spark"
+        - name: SPARK_WORKER_MEMORY
+          value: "3g"
+        - name: SPARK_WORKER_CORES
+          value: "2"
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "3Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
