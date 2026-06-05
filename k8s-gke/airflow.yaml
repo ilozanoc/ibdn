@@ -68,17 +68,21 @@ spec:
           value: "true"
         - name: KUBECTL
           value: "/opt/kubectl-bin/kubectl"
+        - name: AIRFLOW__CORE__EXECUTOR
+          value: "SequentialExecutor"
+        - name: AIRFLOW__CORE__DAGS_FOLDER
+          value: "/opt/airflow/dags-cm"
         volumeMounts:
         - name: airflow-db
           mountPath: /opt/airflow
         - name: dags
-          mountPath: /opt/airflow/dags/retrain_model.py
+          mountPath: /opt/airflow/dags-cm/retrain_model.py
           subPath: retrain_model.py
       containers:
       - name: airflow
         image: apache/airflow:2.10.4
         imagePullPolicy: Always
-        command: ["bash", "-c", "airflow scheduler & airflow webserver"]
+        command: ["bash", "-c", "airflow db migrate && airflow users create --username admin --password admin --firstname Admin --lastname Admin --role Admin --email admin@example.com 2>/dev/null || true && airflow webserver --port 8080 & exec airflow scheduler"]
         ports:
         - containerPort: 8080
         env:
@@ -90,11 +94,15 @@ spec:
           value: "true"
         - name: KUBECTL
           value: "/opt/kubectl-bin/kubectl"
+        - name: AIRFLOW__CORE__EXECUTOR
+          value: "SequentialExecutor"
+        - name: AIRFLOW__CORE__DAGS_FOLDER
+          value: "/opt/airflow/dags-cm"
         volumeMounts:
         - name: airflow-db
           mountPath: /opt/airflow
         - name: dags
-          mountPath: /opt/airflow/dags/retrain_model.py
+          mountPath: /opt/airflow/dags-cm/retrain_model.py
           subPath: retrain_model.py
         - name: kubectl-bin
           mountPath: /opt/kubectl-bin
